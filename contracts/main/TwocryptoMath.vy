@@ -412,11 +412,7 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         # collapsed for 2 coins
         K0: uint256 = unsafe_div(unsafe_div((10**18 * N_COINS**2) * x[0], D) * x[1], D)
 
-        _g1k0: uint256 = __g1k0
-        if _g1k0 > K0:
-            _g1k0 = unsafe_add(unsafe_sub(_g1k0, K0), 1)  # > 0
-        else:
-            _g1k0 = unsafe_add(unsafe_sub(K0, _g1k0), 1)  # > 0
+        _g1k0: uint256 = unsafe_add((unsafe_sub(__g1k0, K0) if __g1k0 > K0 else unsafe_sub(K0, __g1k0)), 1)
 
         # D / (A * N**N) * _g1k0**2 / gamma**2
         mul1: uint256 = unsafe_div(unsafe_div(unsafe_div(10**18 * D, gamma) * _g1k0, gamma) * _g1k0 * A_MULTIPLIER, ANN)
