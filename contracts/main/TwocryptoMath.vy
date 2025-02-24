@@ -400,7 +400,6 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
             D = S
 
     __g1k0: uint256 = gamma + 10**18
-    diff: uint256 = 0
 
     for i: uint256 in range(255):
         D_prev: uint256 = D
@@ -441,13 +440,8 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         else:
             D = unsafe_div(unsafe_sub(D_minus, D_plus), 2)
 
-        if D > D_prev:
-            diff = unsafe_sub(D, D_prev)
-        else:
-            diff = unsafe_sub(D_prev, D)
-
-        if diff * 10**14 < max(10**16, D):  # Could reduce precision for gas efficiency here
-
+        # Could reduce precision for gas efficiency here
+        if (unsafe_sub(D, D_prev) if D > D_prev else unsafe_sub(D_prev, D)) * 10**14 < max(10**16, D):
             for _x: uint256 in x:
                 frac: uint256 = _x * 10**18 // D
                 assert (frac > 10**16 // N_COINS - 1) and (frac < 10**20 // N_COINS + 1), "unsafe values x[i]"
