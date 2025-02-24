@@ -390,14 +390,17 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
 
     S: uint256 = unsafe_add(x[0], x[1])  # can unsafe add here because we checked x[0] bounds
 
-    D: uint256 = 0
-    if K0_prev == 0:
-        D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
-    else:
-        # D = isqrt(x[0] * x[1] * 4 / K0_prev * 10**18)
-        D = isqrt(unsafe_mul(unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18))
-        if S < D:
-            D = S
+    D: uint256 = (
+        N_COINS * isqrt(unsafe_mul(x[0], x[1]))
+        if K0_prev == 0
+        else isqrt(
+            unsafe_mul(
+                unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18
+            )
+        )
+    )
+    if S < D:
+        D = S
 
     __g1k0: uint256 = gamma + 10**18
 
