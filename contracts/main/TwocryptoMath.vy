@@ -392,7 +392,19 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
 
     D: uint256 = 0
     if K0_prev == 0:
-        D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
+        P: uint256 = unsafe_mul(x[0], x[1])
+        sqrtP: uint256 = isqrt(P)
+        # D = (4 * P**1.5 + 4 * A * P**0.5 * S**2 - 2 * P * (S + 2 * A * S)) / (A * S**2)
+        D = unsafe_div(
+            unsafe_sub(
+                unsafe_add(
+                    unsafe_mul(unsafe_div(unsafe_mul(4, P), S), sqrtP),
+                    unsafe_mul(unsafe_mul(ANN, sqrtP), S),
+                ),
+                unsafe_mul(P, unsafe_add(2, ANN)),
+            ),
+            unsafe_mul(unsafe_div(ANN, 4), S),
+        )
     else:
         # D = isqrt(x[0] * x[1] * 4 / K0_prev * 10**18)
         D = isqrt(unsafe_mul(unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18))
