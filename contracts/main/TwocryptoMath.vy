@@ -441,7 +441,7 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         neg_fprime: uint256 = (S + unsafe_div(S * mul2, 10**18)) + mul1 * N_COINS // K0 - unsafe_div(mul2 * D, 10**18)
 
         # D -= f / fprime; neg_fprime safediv being validated
-        D_plus: uint256 = D * (neg_fprime + S) // neg_fprime
+        D_plus: uint256 = D + D * S // neg_fprime
         D_minus: uint256 = unsafe_div(D * D,  neg_fprime)
         if 10**18 > K0:
             D_minus += unsafe_div(unsafe_div(D * unsafe_div(mul1, neg_fprime), 10**18) * unsafe_sub(10**18, K0), K0)
