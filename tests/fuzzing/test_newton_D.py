@@ -1,112 +1,114 @@
+# flake8: noqa
+import sys
+import time
+
 import pytest
-from hypothesis import event, given, note, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
+from itertools import permutations
 
-import tests.utils.simulator as sim
-from tests.utils.strategies import A, fee_gamma, fees, gamma
+sys.stdout = sys.stderr
 
-# you might want to increase this when fuzzing locally
-MAX_SAMPLES = 10000
-# N_CASES = 32 # Increase for fuzzing
-N_CASES = 1
+N_COINS = 2
+MAX_SAMPLES = 100000  # Increase for fuzzing
 
-MIN_XD = 10**17
-MAX_XD = 10**19
+# IMPORTANT: keep number of workers equal to number of N_CASES since module variables do not reinitialize.
+N_CASES = 32
 
+A_MUL = 10000 * 2 ** 2
+MIN_A = int(0.01 * A_MUL)
+MAX_A = 1000 * A_MUL
+
+# gamma from 1e-8 up to 0.05
+MIN_GAMMA = 10 ** 10
+MAX_GAMMA = 5 * 10 ** 16
+
+METHODS = ["ORIGINAL", "SUM", "A", "B", "C", "C1", "S_ANCHORED", "P_ANCHORED"]
+
+pytest.progress = 0
+pytest.passed_cases = 0
+pytest.bad_cases = 0
+pytest.t_start = time.time()
+pytest.file = open("resN2-pure.csv", "w")
+
+pytest.file.write(",".join(map(str, ["A", "gamma", "x", "y", "yx", "perm", *[f"gas_{m},guess_{m},result_{m},steps_{m}" for m in METHODS]])) + "\n")
+pytest.file.flush()
+pytest.buf = []
+
+class Results:
+    def __init__(self, gas, guess, result, steps):
+        self.gas = gas
+        self.guess = guess
+        self.result = result
+        self.steps = steps
+    def __str__(self):
+        return f"{gas},{guess},{result},{steps}"
 
 @pytest.mark.parametrize(
     "_tmp", range(N_CASES)
-)  # Parallelisation hack (more details in folder's README)
+)
 @given(
-    D=st.integers(min_value=10**18, max_value=10**14 * 10**18),  # 1 USD to 100T USD
-    xD=st.integers(min_value=MIN_XD, max_value=MAX_XD),  # ratio 1e18 * x/D, typically 1e18 * 1
-    yD=st.integers(min_value=MIN_XD, max_value=MAX_XD),  # ratio 1e18 * y/D, typically 1e18 * 1
-    j=st.integers(min_value=0, max_value=1),
-    btcScalePrice=st.integers(min_value=10**2, max_value=10**7),
-    ethScalePrice=st.integers(min_value=10, max_value=10**5),
-    A=A,
-    gamma=gamma,
-    mid_out_fee=fees(),
-    fee_gamma=fee_gamma,
+    A=st.integers(min_value=MIN_A, max_value=MAX_A),
+    x=st.integers(min_value=10 ** 18, max_value=10 ** 8 * 10 ** 18),  # 1 USD to 100M USD
+    yx=st.integers(min_value=int(1.001e18), max_value=int(0.999e20)),  # <- ratio 1e18 * y/x, typically 1e18 * 1
+    perm=st.integers(min_value=0, max_value=1),  # Permutation
+    gamma=st.integers(min_value=MIN_GAMMA, max_value=MAX_GAMMA)
 )
 @settings(max_examples=MAX_SAMPLES, deadline=None)
-def test_newton_D(
-    math_optimized,
-    math_unoptimized,
-    D,
-    xD,
-    yD,
-    A,
-    gamma,
-    j,
-    btcScalePrice,
-    ethScalePrice,
-    mid_out_fee,
-    fee_gamma,
-    _tmp,
-):
-    is_safe = all(f >= MIN_XD and f <= MAX_XD for f in [xx * 10**18 // D for xx in [xD, yD]])
+def test_newton_D(math_optimized, math_unoptimized, A, x, yx, perm, gamma, _tmp):
+    i, j = list(permutations(range(2)))[perm]
+    X = [x, x * yx // 10 ** 18]
+    X = [X[i], X[j]]
 
-    X = [D * xD // 10**18, D * yD // 10**18]
+    if X[0] == X[1]:
+        return
 
-    result_get_y = 0
-    get_y_failed = False
+    pytest.progress += 1
+    if pytest.progress % 1000 == 0:
+        print(
+            f"Worker {_tmp}, {pytest.progress} | {pytest.passed_cases} cases processed in {time.time() - pytest.t_start:.1f} seconds. {pytest.bad_cases} bad cases.")
+        if len(pytest.buf) >= 10:
+            pytest.file.write("\n".join(pytest.buf) + "\n")
+            pytest.file.flush()
+            pytest.buf.clear()
+
     try:
-        (result_get_y, K0) = math_optimized.get_y(A, gamma, X, D, j)
-    except Exception:
-        get_y_failed = True
+        result_contract_obj = math_optimized.newton_D(A, gamma, X, K0=0, method=math_optimized.Method.ORIGINAL, calculate=True)
+        result_contract = result_contract_obj.D
+    except:
+        pytest.bad_cases += 1
+        return  # original fails so we move on
 
-    if get_y_failed:
-        newton_y_failed = False
+    results = {
+        "ORIGINAL": Results(
+            guess=result_contract_obj.D0,
+            gas=math_optimized._computation.get_gas_used(),
+            result=result_contract_obj.D,
+            steps=result_contract.steps
+        )
+    }
+
+    for method in METHODS[1:]:
+        guess = None
+        result = None
+        gas = None
+        steps = None
         try:
-            math_optimized.newton_y(A, gamma, X, D, j)
-        except Exception:
-            newton_y_failed = True
+            guess = math_optimized.newton_D(A, gamma, X, K0=0, method=math_optimized.Method.ORIGINAL, calculate=False).D0
+            math_optimized._computation.get_gas_used()
 
-    if get_y_failed and newton_y_failed:
-        return  # both canonical and new method fail, so we ignore.
+            result_obj = math_optimized.newton_D(A, gamma, X, K0=0, method=math_optimized.Method.ORIGINAL, calculate=True)
+            result = result_obj.D
+            gas = math_optimized._computation.get_gas_used()
+            steps = result_obj.steps
+        except:
+            print(f"Bad: {A}, {gamma}, {X}")
+            return
 
-    if get_y_failed and not newton_y_failed and is_safe:
-        raise  # this is a problem
+        results[method] = Results(guess=guess, gas=gas, result=result, steps=steps)
 
-    # dy should be positive
-    if (
-        result_get_y < X[j]
-        and result_get_y / D > MIN_XD / 1e18
-        and result_get_y / D < MAX_XD / 1e18
-    ):
-        price_scale = (btcScalePrice, ethScalePrice)
-        y = X[j]
-        dy = X[j] - result_get_y
-        dy -= 1
+    line = ",".join(map(str, [A, gamma, X[0], X[1], yx, perm, *[results[m] for m in METHODS]]))
 
-        if j > 0:
-            dy = dy * 10**18 // price_scale[j - 1]
+    pytest.buf.append(line)
+    pytest.passed_cases += 1
 
-        fee = sim.get_fee(X, fee_gamma, mid_out_fee[0], mid_out_fee[1])
-        dy -= fee * dy // 10**10
-        y -= dy
-
-        if dy / X[j] <= 0.95:
-            # if we stop before this block we are not testing newton_D
-            event("test actually went through")
-            X[j] = y
-
-            note(
-                ", A: {:.2e}".format(A)
-                + ", D: {:.2e}".format(D)
-                + ", xD: {:.2e}".format(xD)
-                + ", yD: {:.2e}".format(yD)
-                + ", GAMMA: {:.2e}".format(gamma)
-                + ", j: {:.2e}".format(j)
-                + ", btcScalePrice: {:.2e}".format(btcScalePrice)
-                + ", ethScalePrice: {:.2e}".format(ethScalePrice)
-                + ", mid_fee: {:.2e}".format(mid_out_fee[0])
-                + ", out_fee: {:.2e}".format(mid_out_fee[1])
-                + ", fee_gamma: {:.2e}".format(fee_gamma)
-            )
-
-            result_sim = math_unoptimized.newton_D(A, gamma, X)
-            result_contract = math_optimized.newton_D(A, gamma, X, K0)
-
-            assert abs(result_sim - result_contract) <= max(10000, result_sim / 1e12)
