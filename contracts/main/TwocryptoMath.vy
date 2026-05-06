@@ -10,8 +10,8 @@
 
 from snekmate.utils import math
 
-from interfaces import ITwocryptoMath
-implements: ITwocryptoMath
+# from interfaces import ITwocryptoMath
+# implements: ITwocryptoMath
 
 import constants as c
 # Trick until the compiler supports `from constants import N_COINS`
@@ -364,10 +364,47 @@ def get_y(
 
     return y_out
 
+@external
+@pure
+def calculate_F(A: uint256, gamma: uint256, X: uint256[N_COINS], D: uint256) -> uint256:
+    x: uint256 = X[0]
+    y: uint256 = X[1]
+    N: uint256 = 2
+
+    x_prod: uint256 = x * y
+    K0: uint256 = x_prod * 10**18 // (D // N)**2
+
+    K: uint256 = A * K0 * gamma * gamma // (gamma + 10**18 - K0)**2
+    #f = K * D ** (N - 1) * (x + y) + x_prod - (K * D**N + (Decimal(D) // N) ** N)
+    f_1: uint256 = K * D * (x + y) // 10**18
+    f_2: uint256 = x_prod
+    f_3: uint256 = K * D * D // 10**18
+    f_4: uint256 = (D // N) * (D // N)
+    f: uint256 = f_1 + f_2 - (f_3 + f_4)
+
+    return f
+
+enum Method:
+    ORIGINAL
+    SUM
+    A
+    B
+    C
+    C1
+    S_ANCHORED
+    P_ANCHORED
+    K0
+
+struct Result:
+    D: uint256
+    steps: uint256
+    D0: uint256
+    Ds: DynArray[uint256, 50]
+
 
 @external
 @view
-def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev: uint256 = 0) -> uint256:
+def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev: uint256 = 0, method: Method=Method.ORIGINAL, calculate: bool=True) -> Result:
     """
     Finding the invariant using Newton method.
     ANN is higher by the factor A_MULTIPLIER
@@ -387,15 +424,45 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
     assert unsafe_div(x[1] * 10**18, x[0]) > 10**14 - 1, "unsafe values x[i] (input)"
 
     S: uint256 = unsafe_add(x[0], x[1])  # can unsafe add here because we checked x[0] bounds
+    P: uint256 = 0
+    sqrt_P: uint256 = 0
 
     D: uint256 = 0
-    if K0_prev == 0:
+    imb: uint256 = 0
+    ret_obj: Result = Result(D=0, steps=0, D0=0, Ds=[])
+    if method == Method.ORIGINAL:
         D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
-    else:
-        # D = isqrt(x[0] * x[1] * 4 / K0_prev * 10**18)
+    if method == Method.SUM:
+        D = S
+    if method == Method.A:
+        D = (N_COINS * 10**18 + gamma // 2) * isqrt(unsafe_mul(x[0], x[1])) // 10**18
+    if method == Method.B:
+        D = (N_COINS * 10**18 + gamma * 5 // 4) * isqrt(unsafe_mul(x[0], x[1])) // 10**18
+    if method == Method.C:
+        P = unsafe_mul(x[0], x[1])
+        sqrtP = isqrt(P)
+        #D = (4 * P**1.5 + 4 * A * P**0.5 * S**2 - 2 * P * (S + 2 * A * S)) / (A * S**2)
+        D = ((4 * P // S * sqrtP + ANN * sqrtP * S) - P * (2 + ANN)) // (ANN // 4 * S)
+    if method == Method.C1:
+        D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
+        P = unsafe_mul(x[0], x[1])
+        sqrtP = isqrt(P)
+        # D = 2 * (A * S + sqrt(P)) / (2*A + 1)
+        D = (ANN * S // 4 + sqrtP * A_MULTIPLIER) // (ANN // 2 + A_MULTIPLIER)
+    if method == Method.S_ANCHORED:
+        P = unsafe_mul(x[0], x[1])
+        delta_div_S: uint256 = (S - 4 * P // S)
+        D = S - 2 * delta_div_S * delta_div_S // S * 10**18 // gamma * A_MULTIPLIER // ANN
+    if method == Method.P_ANCHORED:
+        P = unsafe_mul(x[0], x[1])
+        D = N_COINS * isqrt(P) + isqrt(S * S * 10**18 // P - 4 * 10**18) // 4
+    if method == Method.K0:
         D = isqrt(unsafe_mul(unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18))
-        if S < D:
-            D = S
+
+    ret_obj.D0 = D
+
+    if not calculate:
+        return ret_obj
 
     __g1k0: uint256 = gamma + 10**18
     diff: uint256 = 0
@@ -403,6 +470,7 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
     for i: uint256 in range(255):
         D_prev: uint256 = D
         assert D > 0, "D==0"
+        ret_obj.Ds.append(D)
         # Unsafe division by D and D_prev is now safe
 
         # K0: uint256 = 10**18
@@ -449,7 +517,10 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
             for _x: uint256 in x:
                 frac: uint256 = _x * 10**18 // D
                 assert (frac > 10**16 // N_COINS - 1) and (frac < 10**20 // N_COINS + 1), "unsafe values x[i]"
-            return D
+            ret_obj.D = D
+            ret_obj.steps = i
+            ret_obj.Ds.append(D)
+            return ret_obj
 
     raise "Did not converge"
 
