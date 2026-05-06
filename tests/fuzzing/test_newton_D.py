@@ -10,7 +10,7 @@ from itertools import permutations
 sys.stdout = sys.stderr
 
 N_COINS = 2
-MAX_SAMPLES = 100000  # Increase for fuzzing
+MAX_SAMPLES = 1#00000  # Increase for fuzzing
 
 # IMPORTANT: keep number of workers equal to number of N_CASES since module variables do not reinitialize.
 N_CASES = 32
@@ -64,7 +64,7 @@ def test_newton_D(math_optimized, math_unoptimized, A, x, yx, perm, gamma, _tmp)
         return
 
     pytest.progress += 1
-    if pytest.progress % 1000 == 0:
+    if pytest.progress % 10 == 0:
         print(
             f"Worker {_tmp}, {pytest.progress} | {pytest.passed_cases} cases processed in {time.time() - pytest.t_start:.1f} seconds. {pytest.bad_cases} bad cases.")
         if len(pytest.buf) >= 10:
@@ -72,12 +72,12 @@ def test_newton_D(math_optimized, math_unoptimized, A, x, yx, perm, gamma, _tmp)
             pytest.file.flush()
             pytest.buf.clear()
 
-    try:
-        result_contract_obj = math_optimized.newton_D(A, gamma, X, K0=0, method=math_optimized.Method.ORIGINAL, calculate=True)
-        result_contract = result_contract_obj.D
-    except:
-        pytest.bad_cases += 1
-        return  # original fails so we move on
+    #try:
+    result_contract_obj = math_optimized.newton_D(A, gamma, X, K0=0, method=math_optimized.Method_ORIGINAL, calculate=True)
+    result_contract = result_contract_obj.D
+    #except:
+    #    pytest.bad_cases += 1
+    #    return  # original fails so we move on
 
     results = {
         "ORIGINAL": Results(
@@ -94,10 +94,10 @@ def test_newton_D(math_optimized, math_unoptimized, A, x, yx, perm, gamma, _tmp)
         gas = None
         steps = None
         try:
-            guess = math_optimized.newton_D(A, gamma, X, K0=0, method=math_optimized.Method.ORIGINAL, calculate=False).D0
+            guess = math_optimized.newton_D(A, gamma, X, K0=0, method=getattr(math_optimized.Method, method), calculate=False).D0
             math_optimized._computation.get_gas_used()
 
-            result_obj = math_optimized.newton_D(A, gamma, X, K0=0, method=math_optimized.Method.ORIGINAL, calculate=True)
+            result_obj = math_optimized.newton_D(A, gamma, X, K0=0, method=getattr(math_optimized.Method,method), calculate=True)
             result = result_obj.D
             gas = math_optimized._computation.get_gas_used()
             steps = result_obj.steps

@@ -384,16 +384,16 @@ def calculate_F(A: uint256, gamma: uint256, X: uint256[N_COINS], D: uint256) -> 
 
     return f
 
-enum Method:
-    ORIGINAL
-    SUM
-    A
-    B
-    C
-    C1
-    S_ANCHORED
-    P_ANCHORED
-    K0
+# === Method constants (instead of enum/flag) ===
+Method_ORIGINAL:   public(constant(uint256)) = 0
+Method_SUM:        public(constant(uint256)) = 1
+Method_A:          public(constant(uint256)) = 2
+Method_B:          public(constant(uint256)) = 3
+Method_C:          public(constant(uint256)) = 4
+Method_C1:         public(constant(uint256)) = 5
+Method_S_ANCHORED: public(constant(uint256)) = 6
+Method_P_ANCHORED: public(constant(uint256)) = 7
+Method_K0:         public(constant(uint256)) = 8
 
 struct Result:
     D: uint256
@@ -404,7 +404,7 @@ struct Result:
 
 @external
 @view
-def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev: uint256 = 0, method: Method=Method.ORIGINAL, calculate: bool=True) -> Result:
+def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev: uint256 = 0, method: uint256=Method_ORIGINAL, calculate: bool=True) -> Result:
     """
     Finding the invariant using Newton method.
     ANN is higher by the factor A_MULTIPLIER
@@ -425,38 +425,38 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
 
     S: uint256 = unsafe_add(x[0], x[1])  # can unsafe add here because we checked x[0] bounds
     P: uint256 = 0
-    sqrt_P: uint256 = 0
+    sqrtP: uint256 = 0
 
     D: uint256 = 0
     imb: uint256 = 0
     ret_obj: Result = Result(D=0, steps=0, D0=0, Ds=[])
-    if method == Method.ORIGINAL:
+    if method == Method_ORIGINAL:
         D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
-    if method == Method.SUM:
+    if method == Method_SUM:
         D = S
-    if method == Method.A:
+    if method == Method_A:
         D = (N_COINS * 10**18 + gamma // 2) * isqrt(unsafe_mul(x[0], x[1])) // 10**18
-    if method == Method.B:
+    if method == Method_B:
         D = (N_COINS * 10**18 + gamma * 5 // 4) * isqrt(unsafe_mul(x[0], x[1])) // 10**18
-    if method == Method.C:
+    if method == Method_C:
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
         #D = (4 * P**1.5 + 4 * A * P**0.5 * S**2 - 2 * P * (S + 2 * A * S)) / (A * S**2)
         D = ((4 * P // S * sqrtP + ANN * sqrtP * S) - P * (2 + ANN)) // (ANN // 4 * S)
-    if method == Method.C1:
+    if method == Method_C1:
         D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
         # D = 2 * (A * S + sqrt(P)) / (2*A + 1)
-        D = (ANN * S // 4 + sqrtP * A_MULTIPLIER) // (ANN // 2 + A_MULTIPLIER)
-    if method == Method.S_ANCHORED:
+        D = (ANN * S // 4 + sqrtP * c.A_MULTIPLIER) // (ANN // 2 + c.A_MULTIPLIER)
+    if method == Method_S_ANCHORED:
         P = unsafe_mul(x[0], x[1])
         delta_div_S: uint256 = (S - 4 * P // S)
-        D = S - 2 * delta_div_S * delta_div_S // S * 10**18 // gamma * A_MULTIPLIER // ANN
-    if method == Method.P_ANCHORED:
+        D = S - 2 * delta_div_S * delta_div_S // S * 10**18 // gamma * c.A_MULTIPLIER // ANN
+    if method == Method_P_ANCHORED:
         P = unsafe_mul(x[0], x[1])
         D = N_COINS * isqrt(P) + isqrt(S * S * 10**18 // P - 4 * 10**18) // 4
-    if method == Method.K0:
+    if method == Method_K0:
         D = isqrt(unsafe_mul(unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18))
 
     ret_obj.D0 = D
