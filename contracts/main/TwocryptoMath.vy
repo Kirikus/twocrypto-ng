@@ -393,7 +393,8 @@ Method_C:          public(constant(uint256)) = 4
 Method_C1:         public(constant(uint256)) = 5
 Method_S_ANCHORED: public(constant(uint256)) = 6
 Method_P_ANCHORED: public(constant(uint256)) = 7
-Method_K0:         public(constant(uint256)) = 8
+Method_S_ANCHORED_EXACT: public(constant(uint256)) = 8
+Method_K0:         public(constant(uint256)) = 9
 
 struct Result:
     D: uint256
@@ -451,11 +452,24 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         D = (ANN * S // 4 + sqrtP * c.A_MULTIPLIER) // (ANN // 2 + c.A_MULTIPLIER)
     if method == Method_S_ANCHORED:
         P = unsafe_mul(x[0], x[1])
-        delta_div_S: uint256 = (S - 4 * P // S)
-        D = S - 2 * delta_div_S * delta_div_S // S * 10**18 // gamma * c.A_MULTIPLIER // ANN
+        # delta_div_S: uint256 = (S - 4 * P // S)
+        delta_div_S: uint256 = 4 * P // S
+        if delta_div_S < S:
+            delta_div_S = S - delta_div_S
+        else:
+            delta_div_S = delta_div_S - S
+        #D = S - 2 * delta_div_S * delta_div_S // S * 10**18 // gamma * c.A_MULTIPLIER // ANN
+        D = 2 * delta_div_S * delta_div_S // S
+        D = D * 10**18 // gamma
+        D = D * c.A_MULTIPLIER // ANN
+        D = S - D
+    if method == Method_S_ANCHORED_EXACT:
+        P = unsafe_mul(x[0], x[1])
+        D = S - (S - 4 * P // S)  * c.A_MULTIPLIER // ANN
     if method == Method_P_ANCHORED:
         P = unsafe_mul(x[0], x[1])
-        D = N_COINS * isqrt(P) + isqrt(S * S * 10**18 // P - 4 * 10**18) // 4
+        sqrtP = isqrt(P)
+        D = N_COINS * sqrtP + (S * S  - 4 * P) // 4 // sqrtP
     if method == Method_K0:
         D = isqrt(unsafe_mul(unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18))
 
