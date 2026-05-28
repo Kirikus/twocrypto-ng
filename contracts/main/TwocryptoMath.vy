@@ -443,13 +443,12 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
         #D = (4 * P**1.5 + 4 * A * P**0.5 * S**2 - 2 * P * (S + 2 * A * S)) / (A * S**2)
-        D = ((4 * P // S * sqrtP + ANN * sqrtP * S) - P * (2 + ANN)) // (ANN // 4 * S)
+        D = ((4 * P // S * sqrtP + ANN * sqrtP * S) - P // S * (2 * S  + ANN * S // c.A_MULTIPLIER)) // (ANN * S  // 4 // c.A_MULTIPLIER)
     if method == Method_C1:
-        D = N_COINS * isqrt(unsafe_mul(x[0], x[1]))
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
         # D = 2 * (A * S + sqrt(P)) / (2*A + 1)
-        D = (ANN * S // 4 + sqrtP * c.A_MULTIPLIER) // (ANN // 2 + c.A_MULTIPLIER)
+        D = 2 * (ANN * S // 4 + sqrtP * c.A_MULTIPLIER) // (ANN // 2 + c.A_MULTIPLIER)
     if method == Method_S_ANCHORED:
         P = unsafe_mul(x[0], x[1])
         # delta_div_S: uint256 = (S - 4 * P // S)
@@ -465,7 +464,7 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         D = S - D
     if method == Method_S_ANCHORED_EXACT:
         P = unsafe_mul(x[0], x[1])
-        D = S - (S - 4 * P // S)  * c.A_MULTIPLIER // ANN
+        D = S - (S * S - 4 * P) // (2 * S + S * ANN // c.A_MULTIPLIER)
     if method == Method_P_ANCHORED:
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
