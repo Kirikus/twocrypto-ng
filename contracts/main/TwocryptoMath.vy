@@ -389,13 +389,15 @@ Method_ORIGINAL:   public(constant(uint256)) = 0
 Method_SUM:        public(constant(uint256)) = 1
 Method_A:          public(constant(uint256)) = 2
 Method_B:          public(constant(uint256)) = 3
-Method_C:          public(constant(uint256)) = 4
+Method_C_OLD:          public(constant(uint256)) = 4
 Method_C1:         public(constant(uint256)) = 5
-Method_S_ANCHORED: public(constant(uint256)) = 6
-Method_P_ANCHORED: public(constant(uint256)) = 7
-Method_S_ANCHORED_EXACT: public(constant(uint256)) = 8
-Method_P_ANCHORED_EXACT: public(constant(uint256)) = 9
-Method_K0:         public(constant(uint256)) = 10
+Method_C:          public(constant(uint256)) = 6
+Method_S_ANCHORED: public(constant(uint256)) = 7
+Method_P_ANCHORED: public(constant(uint256)) = 8
+Method_S_ANCHORED_EXACT: public(constant(uint256)) = 9
+Method_P_ANCHORED_EXACT: public(constant(uint256)) = 10
+Method_MINE: public(constant(uint256)) = 11
+Method_K0:         public(constant(uint256)) = 12
 
 struct Result:
     D: uint256
@@ -443,6 +445,11 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
     if method == Method_C:
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
+        # D = 2 sqrt(P) (2AS - 2Asqrt(P) + sqrt(P)) / (AS + sqrt(P))
+        D = (ANN / 2 * S + sqrtP * c.A_MULTIPLIER - ANN / 2 * sqrtP) * 2 * sqrtP / (ANN / 4 * S + sqrtP * c.A_MULTIPLIER)
+    if method == Method_C_OLD:
+        P = unsafe_mul(x[0], x[1])
+        sqrtP = isqrt(P)
         #D = (4 * P**1.5 + 4 * A * P**0.5 * S**2 - 2 * P * (S + 2 * A * S)) / (A * S**2)
         D = ((4 * P // S * sqrtP + ANN * sqrtP * S) - P // S * (2 * S  + ANN * S // c.A_MULTIPLIER)) // (ANN * S  // 4 // c.A_MULTIPLIER)
     if method == Method_C1:
@@ -474,6 +481,9 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
         D = N_COINS * sqrtP + (S * S  - 4 * P) // sqrtP * ANN // 8 // (ANN // 2 + c.A_MULTIPLIER)
+    if method == Method_MINE:
+        P = unsafe_mul(x[0], x[1])
+        D = 4 * P / S + S / 4
     if method == Method_K0:
         D = isqrt(unsafe_mul(unsafe_div(unsafe_mul(unsafe_mul(4, x[0]), x[1]), K0_prev), 10**18))
 
