@@ -22,7 +22,7 @@ MAX_A = 1000 * A_MUL
 MIN_GAMMA = 10 ** 10
 MAX_GAMMA = 5 * 10 ** 16
 
-METHODS = ["ORIGINAL", "SUM", "A", "B", "C_OLD", "C", "C1", "S_ANCHORED", "S_ANCHORED_EXACT", "P_ANCHORED", "MINE"]
+METHODS = ["ORIGINAL", "SUM", "A", "B", "C_OLD", "C", "C1", "S_ANCHORED", "S_ANCHORED_EXACT", "S_ANCHORED_MIXED", "P_ANCHORED", "P_ANCHORED_EXACT", "MINE"]
 
 pytest.progress = 0
 pytest.passed_cases = 0
