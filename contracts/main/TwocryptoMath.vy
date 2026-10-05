@@ -396,8 +396,9 @@ Method_S_ANCHORED: public(constant(uint256)) = 7
 Method_P_ANCHORED: public(constant(uint256)) = 8
 Method_S_ANCHORED_EXACT: public(constant(uint256)) = 9
 Method_P_ANCHORED_EXACT: public(constant(uint256)) = 10
-Method_MINE: public(constant(uint256)) = 11
-Method_K0:         public(constant(uint256)) = 12
+Method_S_ANCHORED_MIXED: public(constant(uint256)) = 11
+Method_MINE:       public(constant(uint256)) = 12
+Method_K0:         public(constant(uint256)) = 13
 
 struct Result:
     D: uint256
@@ -465,6 +466,10 @@ def newton_D(ANN: uint256, gamma: uint256, x_unsorted: uint256[N_COINS], K0_prev
         P = unsafe_mul(x[0], x[1])
         delta_div_S: uint256 = (S - 4 * P // S)
         D = S - delta_div_S * c.A_MULTIPLIER // (2 * c.A_MULTIPLIER + ANN)
+    if method == Method_S_ANCHORED_MIXED:
+        P = unsafe_mul(x[0], x[1])
+        delta_div_S: uint256 = (S - 4 * P // S)
+        D = S - delta_div_S * c.A_MULTIPLIER // (2 * c.A_MULTIPLIER + ANN) - 2 * delta_div_S * delta_div_S // S * 10**18 // gamma * c.A_MULTIPLIER // ANN
     if method == Method_P_ANCHORED:
         P = unsafe_mul(x[0], x[1])
         sqrtP = isqrt(P)
